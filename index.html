@@ -177,6 +177,25 @@
             padding-bottom: 24px;
             flex: 1;
             min-height: 0;
+            scroll-behavior: smooth;
+        }
+
+        /* Scrollbar styling */
+        .board::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .board::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .board::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .board::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
         }
 
         .column {
