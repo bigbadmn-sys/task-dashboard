@@ -1,5 +1,3 @@
-# Tasks
-
 ## TOP PRIORITY
 - [ ] **Make repair appointments with Diamond Lake Auto for Hyundai (Brakes, Alignment, Air Conditioning) and Sienna (Brakes, General Tuneup)**
 - [ ] **Replace Stairway Lightbulb**
@@ -29,8 +27,8 @@
 - [ ] **Cull RHS Track Pics**
 
 ## Done
-- [x] **Complete 2025 Joint Tax Return Draft**
 - [x] **Get 1098-T from Carter**
 - [x] **Complete 2025 Tax Return for Carter**
+- [x] **Complete 2025 Joint Tax Return Draft**
 
 ## Someday
