@@ -597,16 +597,27 @@
                 // Setup drag-and-drop for cards container
                 cards.addEventListener('dragover', (e) => {
                     e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
                     cards.classList.add('drag-over');
                 });
-                cards.addEventListener('dragleave', () => {
-                    cards.classList.remove('drag-over');
+                cards.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    cards.classList.add('drag-over');
+                });
+                cards.addEventListener('dragleave', (e) => {
+                    // Only remove if dragging outside the container
+                    if (e.target === cards) {
+                        cards.classList.remove('drag-over');
+                    }
                 });
                 cards.addEventListener('drop', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     cards.classList.remove('drag-over');
                     const taskId = e.dataTransfer.getData('text/plain');
-                    moveTaskToSection(taskId, sectionName);
+                    if (taskId) {
+                        moveTaskToSection(taskId, sectionName);
+                    }
                 });
 
                 for (let task of tasks) {
@@ -614,11 +625,6 @@
                     card.className = 'task-card' + (task.completed ? ' completed' : '');
                     card.draggable = true;
                     card.dataset.id = task.id;
-
-                    card.addEventListener('dragstart', (e) => {
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', task.id);
-                    });
 
                     card.innerHTML = `
                         <div class="task-header">
@@ -631,6 +637,18 @@
                             <button class="task-remove" onclick="removeTask('${task.id}')">×</button>
                         </div>
                     `;
+
+                    // Attach dragstart listener AFTER innerHTML to preserve event
+                    card.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', task.id);
+                        card.style.opacity = '0.5';
+                    });
+
+                    card.addEventListener('dragend', (e) => {
+                        card.style.opacity = '1';
+                    });
+
                     cards.appendChild(card);
                 }
 
