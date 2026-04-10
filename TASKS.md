@@ -14,7 +14,7 @@
 - [ ] **Learning Claude** - Build on tool fluency with Claude integrations — due today
 
 ## Waiting On
-- [ ] **1098-T from Carter**
+- [x] **1098-T from Carter**
 - [x] **W2 from Carter**
 - [ ] **W2 from Will**
 - [ ] **W2 from Izzy**
