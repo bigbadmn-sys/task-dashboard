@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #faf9f5;
+            --bg-secondary: #F5F4EF;
+            --bg-card: #ffffff;
+            --text-primary: #141413;
+            --text-secondary: #5c5c5a;
+            --text-muted: #8c8c8a;
+            --accent: #D97757;
+            --accent-hover: #c4684a;
+            --border: #e5e4df;
+            --shadow: rgba(20, 20, 19, 0.04);
+            --success: #2d7d4f;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 4px 16px rgba(20, 20, 19, 0.08);
+            border: 1px solid var(--border);
+        }
+
+        .login-card h1 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }
+
+        .login-card .subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            font-family: monospace;
+        }
+
+        .login-form input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .login-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .login-error {
+            color: #c5382d;
+            background: #fee8e8;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+            height: 100vh;
+            padding: 20px 24px;
+            flex-direction: column;
+        }
+
+        .dashboard.active {
+            display: flex;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: var(--bg-secondary);
+            border-color: var(--text-muted);
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        button.primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .board {
+            display: flex;
+            gap: 24px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding-bottom: 24px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .column {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            min-width: 340px;
+            max-width: 340px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-height: 100%;
+        }
+
+        .column-header {
+            padding: 16px 18px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .column-header:active {
+            cursor: grabbing;
+        }
+
+        .column.dragging-column {
+            opacity: 0.5;
+        }
+
+        .column-header .count {
+            background: var(--bg-card);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .cards {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 12px 12px;
+            min-height: 100px;
+        }
+
+        .cards.drag-over {
+            background: rgba(217, 119, 87, 0.05);
+            border-radius: 8px;
+        }
+
+        .task-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: grab;
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+
+        .task-card:active {
+            cursor: grabbing;
+        }
+
+        .task-card:hover {
+            box-shadow: 0 2px 8px var(--shadow);
+            border-color: var(--accent);
+        }
+
+        .task-card input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .task-card.completed {
+            opacity: 0.6;
+        }
+
+        .task-card.completed .task-text {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        .task-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .task-text {
+            flex: 1;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .task-remove {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            font-size: 1.2rem;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .task-card:hover .task-remove {
+            opacity: 1;
+        }
+
+        .task-remove:hover {
+            color: #c5382d;
+        }
+
+        .status-message {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--success);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+            }
+
+            header {
+                padding: 12px 16px;
+                margin-bottom: 0;
+            }
+
+            .board {
+                padding: 16px;
+                gap: 16px;
+            }
+
+            .column {
+                min-width: 300px;
+            }
+
+            .login-card {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-card">
+            <h1>📱 Task Dashboard</h1>
+            <p class="subtitle">Sign in with your GitHub token to access your tasks.</p>
+
+            <div class="login-error" id="loginError"></div>
+
+            <form class="login-form" onsubmit="handleLogin(event)">
+                <input
+                    type="password"
+                    id="tokenInput"
+                    placeholder="GitHub Personal Access Token (ghp_...)"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" class="login-btn" id="loginBtn">
+                    Sign In
+                </button>
+            </form>
+
+            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 16px; line-height: 1.5;">
+                <strong>Don't have a token?</strong><br>
+                1. Go to <a href="https://github.com/settings/tokens/new" target="_blank" style="color: var(--accent);">github.com/settings/tokens</a><br>
+                2. Create a new token with "repo" scope<br>
+                3. Paste it above
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="dashboard" id="dashboard">
+        <header>
+            <h1>✓ Tasks</h1>
+            <div class="header-controls">
+                <button id="syncBtn" onclick="syncNow()">🔄 Sync</button>
+                <button onclick="handleLogout()">Sign Out</button>
+            </div>
+        </header>
+
+        <div class="board" id="board"></div>
+    </div>
+
+    <div class="status-message" id="statusMessage" style="display: none;"></div>
+
+    <script>
+        // Configuration
+        const OWNER = 'bigbadmn-sys';
+        const REPO = 'task-dashboard';
+        const FILE = 'TASKS.md';
+
+        let token = null;
+        let tasksData = null;
+        let lastSyncTime = null;
+
+        // Login Handler
+        function handleLogin(e) {
+            e.preventDefault();
+            token = document.getElementById('tokenInput').value.trim();
+
+            if (!token) {
+                showError('Please enter a token');
+                return;
+            }
+
+            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('loginBtn').textContent = 'Signing in...';
+
+            // Test token by fetching repo
+            fetch(`https://api.github.com/repos/${OWNER}/${REPO}`, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            })
+            .then(r => {
+                if (!r.ok) throw new Error('Invalid token or repo not found');
+                return r.json();
+            })
+            .then(() => {
+                // Token valid, save to sessionStorage
+                sessionStorage.setItem('gh_token', token);
+                loginSuccess();
+            })
+            .catch(err => {
+                showError('Invalid token or unable to access repo. Make sure token has "repo" scope.');
+                document.getElementById('loginBtn').disabled = false;
+                document.getElementById('loginBtn').textContent = 'Sign In';
+            });
+        }
+
+        function loginSuccess() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+            loadTasks();
+        }
+
+        function handleLogout() {
+            if (confirm('Sign out and clear token?')) {
+                token = null;
+                sessionStorage.removeItem('gh_token');
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('dashboard').classList.remove('active');
+                document.getElementById('tokenInput').value = '';
+            }
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('loginError');
+            el.textContent = '❌ ' + msg;
+            el.style.display = 'block';
+        }
+
+        // Load Tasks from GitHub
+        async function loadTasks() {
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+
+                if (!response.ok) throw new Error('Failed to load tasks');
+
+                const data = await response.json();
+                const content = atob(data.content);
+                parseAndRender(content);
+                lastSyncTime = new Date();
+                showStatus('✅ Synced from GitHub');
+            } catch (err) {
+                showStatus('❌ Failed to load tasks: ' + err.message);
+            }
+        }
+
+        // Parse Markdown
+        function parseAndRender(markdown) {
+            const sections = {};
+            const lines = markdown.split('\n');
+            let currentSection = null;
+
+            for (let line of lines) {
+                if (line.startsWith('## ')) {
+                    currentSection = line.replace('## ', '').trim();
+                    sections[currentSection] = [];
+                } else if (currentSection && line.startsWith('- [')) {
+                    const completed = line.includes('[x]');
+                    const text = line.replace(/^- \[[x ]\] /, '').trim();
+                    sections[currentSection].push({ text, completed, id: Math.random() });
+                }
+            }
+
+            renderBoard(sections);
+        }
+
+        // Render Board
+        function renderBoard(sections) {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+
+            const sectionOrder = ['Active', 'Waiting On', 'Someday', 'Done'];
+
+            for (let sectionName of sectionOrder) {
+                const tasks = sections[sectionName] || [];
+                const col = document.createElement('div');
+                col.className = 'column';
+                col.draggable = true;
+
+                const header = document.createElement('div');
+                header.className = 'column-header';
+                header.innerHTML = `
+                    ${sectionName}
+                    <span class="count">${tasks.length}</span>
+                `;
+
+                const cards = document.createElement('div');
+                cards.className = 'cards';
+
+                for (let task of tasks) {
+                    const card = document.createElement('div');
+                    card.className = 'task-card' + (task.completed ? ' completed' : '');
+                    card.innerHTML = `
+                        <div class="task-header">
+                            <input
+                                type="checkbox"
+                                ${task.completed ? 'checked' : ''}
+                                onchange="toggleTask('${task.id}', this.checked)"
+                            >
+                            <div class="task-text">${task.text}</div>
+                            <button class="task-remove" onclick="removeTask('${task.id}')">×</button>
+                        </div>
+                    `;
+                    cards.appendChild(card);
+                }
+
+                col.appendChild(header);
+                col.appendChild(cards);
+                board.appendChild(col);
+            }
+        }
+
+        function toggleTask(id, completed) {
+            showStatus('💾 Saving...');
+            // Implementation: update in GitHub
+        }
+
+        function removeTask(id) {
+            showStatus('💾 Saving...');
+            // Implementation: update in GitHub
+        }
+
+        async function syncNow() {
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Syncing...';
+
+            await loadTasks();
+
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync';
+        }
+
+        function showStatus(msg) {
+            const el = document.getElementById('statusMessage');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 3000);
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            const savedToken = sessionStorage.getItem('gh_token');
+            if (savedToken) {
+                token = savedToken;
+                loginSuccess();
+            }
+        });
+    </script>
+</body>
+</html>
