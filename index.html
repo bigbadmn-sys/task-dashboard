@@ -396,6 +396,37 @@
             </div>
         </header>
 
+        <div style="padding: 0 20px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card);">
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <input
+                    type="text"
+                    id="newTaskInput"
+                    placeholder="Add a new task..."
+                    style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;"
+                    onkeypress="if(event.key==='Enter') { const section = document.getElementById('taskSectionSelect').value; if (document.getElementById('newTaskInput').value.trim()) addTask(section, document.getElementById('newTaskInput').value.trim()); document.getElementById('newTaskInput').value = ''; }"
+                >
+                <select
+                    id="taskSectionSelect"
+                    style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;"
+                >
+                    <option>Active</option>
+                    <option>Waiting On</option>
+                    <option>Someday</option>
+                    <option>Done</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <input
+                    type="text"
+                    id="newSectionInput"
+                    placeholder="Add new category..."
+                    style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;"
+                    onkeypress="if(event.key==='Enter') { if (document.getElementById('newSectionInput').value.trim()) { addSection(document.getElementById('newSectionInput').value.trim()); document.getElementById('newSectionInput').value = ''; } }"
+                >
+                <button onclick="if (document.getElementById('newSectionInput').value.trim()) { addSection(document.getElementById('newSectionInput').value.trim()); document.getElementById('newSectionInput').value = ''; }" style="padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">+ Category</button>
+            </div>
+        </div>
+
         <div class="board" id="board"></div>
     </div>
 
@@ -507,11 +538,16 @@
                 } else if (currentSection && line.startsWith('- [')) {
                     const completed = line.includes('[x]');
                     const text = line.replace(/^- \[[x ]\] /, '').trim();
-                    sections[currentSection].push({ text, completed, id: Math.random() });
+                    sections[currentSection].push({ text, completed, id: generateId() });
                 }
             }
 
+            tasksData = sections;
             renderBoard(sections);
+        }
+
+        function generateId() {
+            return 'task-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         }
 
         // Render Board
@@ -519,13 +555,33 @@
             const board = document.getElementById('board');
             board.innerHTML = '';
 
-            const sectionOrder = ['Active', 'Waiting On', 'Someday', 'Done'];
+            // Get all section names or use defaults
+            const allSections = Object.keys(sections);
+            const sectionOrder = ['Active', 'Waiting On', 'Someday', 'Done', ...allSections.filter(s => !['Active', 'Waiting On', 'Someday', 'Done'].includes(s))];
+
+            // Update section dropdown
+            const dropdown = document.getElementById('taskSectionSelect');
+            const currentValue = dropdown.value;
+            dropdown.innerHTML = '';
+            for (let section of sectionOrder) {
+                if (sections[section]) {
+                    const option = document.createElement('option');
+                    option.value = section;
+                    option.textContent = section;
+                    dropdown.appendChild(option);
+                }
+            }
+            if (dropdown.querySelector(`[value="${currentValue}"]`)) {
+                dropdown.value = currentValue;
+            }
 
             for (let sectionName of sectionOrder) {
-                const tasks = sections[sectionName] || [];
+                if (!sections[sectionName]) continue;
+
+                const tasks = sections[sectionName];
                 const col = document.createElement('div');
                 col.className = 'column';
-                col.draggable = true;
+                col.dataset.section = sectionName;
 
                 const header = document.createElement('div');
                 header.className = 'column-header';
@@ -536,10 +592,34 @@
 
                 const cards = document.createElement('div');
                 cards.className = 'cards';
+                cards.dataset.section = sectionName;
+
+                // Setup drag-and-drop for cards container
+                cards.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    cards.classList.add('drag-over');
+                });
+                cards.addEventListener('dragleave', () => {
+                    cards.classList.remove('drag-over');
+                });
+                cards.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    cards.classList.remove('drag-over');
+                    const taskId = e.dataTransfer.getData('text/plain');
+                    moveTaskToSection(taskId, sectionName);
+                });
 
                 for (let task of tasks) {
                     const card = document.createElement('div');
                     card.className = 'task-card' + (task.completed ? ' completed' : '');
+                    card.draggable = true;
+                    card.dataset.id = task.id;
+
+                    card.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', task.id);
+                    });
+
                     card.innerHTML = `
                         <div class="task-header">
                             <input
@@ -560,14 +640,113 @@
             }
         }
 
+        function moveTaskToSection(taskId, newSection) {
+            const task = findTaskById(taskId);
+            if (!task) return;
+
+            // Find current section and remove task
+            for (let section in tasksData) {
+                tasksData[section] = tasksData[section].filter(t => t.id !== taskId);
+            }
+
+            // Add to new section
+            if (!tasksData[newSection]) {
+                tasksData[newSection] = [];
+            }
+            tasksData[newSection].push(task);
+
+            saveTasks();
+        }
+
         function toggleTask(id, completed) {
-            showStatus('💾 Saving...');
-            // Implementation: update in GitHub
+            const task = findTaskById(id);
+            if (task) {
+                task.completed = completed;
+                saveTasks();
+            }
         }
 
         function removeTask(id) {
+            for (let section in tasksData) {
+                tasksData[section] = tasksData[section].filter(t => t.id !== id);
+            }
+            saveTasks();
+        }
+
+        function findTaskById(id) {
+            for (let section in tasksData) {
+                const task = tasksData[section].find(t => t.id === id);
+                if (task) return task;
+            }
+            return null;
+        }
+
+        // Convert tasks data back to markdown
+        function tasksToMarkdown() {
+            let markdown = '';
+            const sections = Object.keys(tasksData);
+
+            for (let section of sections) {
+                markdown += `## ${section}\n`;
+                for (let task of tasksData[section]) {
+                    const checkbox = task.completed ? '[x]' : '[ ]';
+                    markdown += `- ${checkbox} ${task.text}\n`;
+                }
+                markdown += '\n';
+            }
+
+            return markdown.trim();
+        }
+
+        // Save tasks to GitHub
+        async function saveTasks() {
+            if (!token || !tasksData) return;
+
             showStatus('💾 Saving...');
-            // Implementation: update in GitHub
+
+            try {
+                // First get the current file to get the SHA
+                const response = await fetch(
+                    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+
+                if (!response.ok) throw new Error('Failed to fetch current file');
+
+                const fileData = await response.json();
+                const markdown = tasksToMarkdown();
+
+                // Update the file
+                const updateResponse = await fetch(
+                    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: 'Update tasks',
+                            content: btoa(markdown),
+                            sha: fileData.sha
+                        })
+                    }
+                );
+
+                if (!updateResponse.ok) throw new Error('Failed to save tasks');
+
+                showStatus('✅ Saved to GitHub');
+                renderBoard(tasksData);
+            } catch (err) {
+                showStatus('❌ Failed to save: ' + err.message);
+                console.error(err);
+            }
         }
 
         async function syncNow() {
@@ -579,6 +758,27 @@
 
             btn.disabled = false;
             btn.textContent = '🔄 Sync';
+        }
+
+        // Add new task to a section
+        function addTask(sectionName, taskText) {
+            if (!tasksData[sectionName]) {
+                tasksData[sectionName] = [];
+            }
+            tasksData[sectionName].push({
+                text: taskText,
+                completed: false,
+                id: generateId()
+            });
+            saveTasks();
+        }
+
+        // Add new section
+        function addSection(sectionName) {
+            if (!tasksData[sectionName]) {
+                tasksData[sectionName] = [];
+                saveTasks();
+            }
         }
 
         function showStatus(msg) {
