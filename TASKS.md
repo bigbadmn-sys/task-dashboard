@@ -15,7 +15,7 @@
 
 ## Waiting On
 - [ ] **1098-T from Carter**
-- [ ] **W2 from Carter**
+- [x] **W2 from Carter**
 - [ ] **W2 from Will**
 - [ ] **W2 from Izzy**
 - [ ] **Google Photos to stack Elian's Pics**
