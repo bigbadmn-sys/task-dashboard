@@ -4,6 +4,7 @@
 - [ ] **Submit Seattle University Financial Aid Appeal Documentation**
 - [ ] **Complete 2025 Tax Return for Will**
 - [ ] **Complete 2025 Tax Return for Elle**
+- [ ] **Review and efile 2025 joint return**
 
 ## Active
 - [ ] **Job Search** - Daily applications, pipeline check, networking outreach — due today
@@ -29,6 +30,5 @@
 - [x] **Get 1098-T from Carter**
 - [x] **Complete 2025 Tax Return for Carter**
 - [x] **Complete 2025 Joint Tax Return Draft**
-- [ ] **Review and efile 2025 joint return**
 
 ## Someday
