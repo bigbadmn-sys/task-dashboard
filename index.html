@@ -309,6 +309,22 @@
             line-height: 1.4;
             word-wrap: break-word;
             word-break: break-word;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .project-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .task-remove {
@@ -621,6 +637,20 @@
             }
         }
 
+        // Extract project label from task text
+        function extractProjectLabel(text) {
+            const match = text.match(/^\*\*\[([^\]]+)\]\*\*/);
+            if (match) {
+                return match[1];
+            }
+            return null;
+        }
+
+        // Remove project label from display text
+        function removeProjectLabel(text) {
+            return text.replace(/^\*\*\[[^\]]+\]\*\*\s*/, '').trim();
+        }
+
         // Parse Markdown
         function parseAndRender(markdown) {
             const sections = {};
@@ -633,12 +663,16 @@
                     sections[currentSection] = [];
                 } else if (currentSection && line.startsWith('- [')) {
                     const completed = line.includes('[x]');
-                    const text = line.replace(/^- \[[x ]\] /, '').trim();
-                    sections[currentSection].push({ text, completed, id: generateId() });
+                    const fullText = line.replace(/^- \[[x ]\] /, '').trim();
+                    const project = extractProjectLabel(fullText);
+                    const text = removeProjectLabel(fullText);
+                    sections[currentSection].push({ text, completed, project, id: generateId() });
                 }
             }
 
             tasksData = sections;
+            // Store section order in tasksData for reordering
+            tasksData._sectionOrder = null;
             renderBoard(sections);
         }
 
@@ -651,9 +685,20 @@
             const board = document.getElementById('board');
             board.innerHTML = '';
 
-            // Get all section names or use defaults
+            // Get all section names or use saved order
             const allSections = Object.keys(sections);
-            const sectionOrder = ['Active', 'Waiting On', 'Someday', 'Done', ...allSections.filter(s => !['Active', 'Waiting On', 'Someday', 'Done'].includes(s))];
+            let sectionOrder;
+
+            // Use saved order if available, otherwise use default
+            if (tasksData._sectionOrder) {
+                sectionOrder = tasksData._sectionOrder;
+            } else {
+                sectionOrder = ['Top Priority', 'Active', 'Waiting On', 'NEXT UP', 'Done', 'Someday',
+                               ...allSections.filter(s => !['Top Priority', 'Active', 'Waiting On', 'NEXT UP', 'Done', 'Someday'].includes(s))];
+            }
+
+            // Save current order for next render
+            tasksData._sectionOrder = sectionOrder;
 
             // Update section dropdown
             const dropdown = document.getElementById('taskSectionSelect');
@@ -681,10 +726,55 @@
 
                 const header = document.createElement('div');
                 header.className = 'column-header';
+                header.draggable = true;
+                header.dataset.section = sectionName;
                 header.innerHTML = `
                     ${sectionName}
                     <span class="count">${tasks.length}</span>
                 `;
+
+                // Make column headers draggable to reorder
+                header.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('section-to-move', sectionName);
+                    header.style.opacity = '0.5';
+                });
+
+                header.addEventListener('dragend', (e) => {
+                    header.style.opacity = '1';
+                    document.querySelectorAll('.column-header').forEach(h => h.style.borderTop = '');
+                });
+
+                header.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    header.style.borderTop = '3px solid var(--accent)';
+                });
+
+                header.addEventListener('dragleave', (e) => {
+                    if (e.target === header) {
+                        header.style.borderTop = '';
+                    }
+                });
+
+                header.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    header.style.borderTop = '';
+                    const sectionToMove = e.dataTransfer.getData('section-to-move');
+                    if (sectionToMove && sectionToMove !== sectionName) {
+                        // Reorder sections
+                        const order = tasksData._sectionOrder || sectionOrder;
+                        const oldIndex = order.indexOf(sectionToMove);
+                        const newIndex = order.indexOf(sectionName);
+                        if (oldIndex !== -1 && newIndex !== -1) {
+                            order.splice(oldIndex, 1);
+                            order.splice(newIndex, 0, sectionToMove);
+                            tasksData._sectionOrder = order;
+                            renderBoard(tasksData);
+                            saveTasks();
+                        }
+                    }
+                });
 
                 const cards = document.createElement('div');
                 cards.className = 'cards';
@@ -729,7 +819,10 @@
                                 ${task.completed ? 'checked' : ''}
                                 onchange="toggleTask('${task.id}', this.checked)"
                             >
-                            <div class="task-text">${task.text}</div>
+                            <div class="task-text">
+                                ${task.project ? `<span class="project-badge">${task.project}</span>` : ''}
+                                ${task.text}
+                            </div>
                             <button class="task-remove" onclick="removeTask('${task.id}')">×</button>
                         </div>
                     `;
@@ -798,13 +891,15 @@
         // Convert tasks data back to markdown
         function tasksToMarkdown() {
             let markdown = '';
-            const sections = Object.keys(tasksData);
+            const sectionOrder = tasksData._sectionOrder || Object.keys(tasksData).filter(k => k !== '_sectionOrder');
 
-            for (let section of sections) {
+            for (let section of sectionOrder) {
+                if (!tasksData[section] || section === '_sectionOrder') continue;
                 markdown += `## ${section}\n`;
                 for (let task of tasksData[section]) {
                     const checkbox = task.completed ? '[x]' : '[ ]';
-                    markdown += `- ${checkbox} ${task.text}\n`;
+                    const projectLabel = task.project ? `**[${task.project}]** ` : '';
+                    markdown += `- ${checkbox} ${projectLabel}${task.text}\n`;
                 }
                 markdown += '\n';
             }
