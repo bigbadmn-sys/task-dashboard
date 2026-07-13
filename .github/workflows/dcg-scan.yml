@@ -15,10 +15,120 @@ jobs:
       checks: write
     steps:
       - uses: actions/checkout@v4
-      - name: dcg scan
-        uses: Dicklesworthstone/destructive_command_guard/action@v0.6.5
-        with:
-          paths: .
-          fail-on: error
-          format: json
-          comment-on-pr: true
+
+      - name: Install DCG
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/v0.6.5/install.sh" | \
+            bash -s -- --version v0.6.5 --dest /usr/local/bin --quiet
+
+      - name: Run DCG scan
+        id: scan
+        env:
+          FORMAT: json
+          FAIL_ON: error
+          PATHS: .
+        run: |
+          RESULTS_FILE="${{ runner.temp }}/dcg-results.json"
+          echo "results_file=$RESULTS_FILE" >> $GITHUB_OUTPUT
+
+          # Run scan and capture exit code
+          set +e
+          dcg scan --paths $PATHS --fail-on $FAIL_ON --format $FORMAT > "$RESULTS_FILE" 2>dcg-stderr.log
+          EXIT_CODE=$?
+          set -e
+
+          # Log stderr if any
+          if [ -s dcg-stderr.log ]; then
+            echo "::group::DCG stderr"
+            cat dcg-stderr.log
+            echo "::endgroup::"
+          fi
+
+          echo "scan_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+      - name: Parse results
+        id: parse
+        run: |
+          RESULTS_FILE="${{ steps.scan.outputs.results_file }}"
+
+          if [ -f "$RESULTS_FILE" ] && [ -s "$RESULTS_FILE" ]; then
+            FILES_SCANNED=$(jq -r '.summary.files_scanned // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+            FINDINGS_TOTAL=$(jq -r '.summary.findings_total // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+            ERRORS=$(jq -r '.summary.severities.error // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+            WARNINGS=$(jq -r '.summary.severities.warning // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+          else
+            FILES_SCANNED=0
+            FINDINGS_TOTAL=0
+            ERRORS=0
+            WARNINGS=0
+          fi
+
+          echo "files_scanned=$FILES_SCANNED" >> $GITHUB_OUTPUT
+          echo "findings_total=$FINDINGS_TOTAL" >> $GITHUB_OUTPUT
+          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+          echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+
+      - name: Generate step summary
+        run: |
+          RESULTS_FILE="${{ steps.scan.outputs.results_file }}"
+          EXIT_CODE="${{ steps.scan.outputs.scan_exit_code }}"
+
+          echo "## Destructive Command Guard Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$EXIT_CODE" = "0" ]; then
+            echo ":white_check_mark: **No destructive commands detected**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo ":warning: **Destructive commands detected**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Files scanned | ${{ steps.parse.outputs.files_scanned }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total findings | ${{ steps.parse.outputs.findings_total }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Errors | ${{ steps.parse.outputs.errors }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Warnings | ${{ steps.parse.outputs.warnings }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "$RESULTS_FILE" ] && [ -s "$RESULTS_FILE" ] && [ "${{ steps.parse.outputs.findings_total }}" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Top Findings" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            jq -r '.findings[:10][] | "\(.file):\(.line) [\(.severity)] \(.rule_id // .extractor_id)"' "$RESULTS_FILE" 2>/dev/null || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RESULTS_FILE="${{ steps.scan.outputs.results_file }}"
+          FINDINGS_TOTAL="${{ steps.parse.outputs.findings_total }}"
+
+          COMMENT="## :shield: Destructive Command Guard Scan\n\n"
+
+          if [ "${{ steps.scan.outputs.scan_exit_code }}" = "0" ]; then
+            COMMENT+="**No destructive commands detected** :white_check_mark:\n\n"
+          else
+            COMMENT+="**$FINDINGS_TOTAL findings detected** :warning:\n\n"
+          fi
+
+          COMMENT+="| Metric | Count |\n"
+          COMMENT+="|--------|-------|\n"
+          COMMENT+="| Files scanned | ${{ steps.parse.outputs.files_scanned }} |\n"
+          COMMENT+="| Errors | ${{ steps.parse.outputs.errors }} |\n"
+          COMMENT+="| Warnings | ${{ steps.parse.outputs.warnings }} |\n"
+
+          if [ "$FINDINGS_TOTAL" -gt 0 ] && [ -f "$RESULTS_FILE" ]; then
+            COMMENT+="\n<details><summary>View findings</summary>\n\n\`\`\`\n"
+            COMMENT+=$(jq -r '.findings[:20][] | "\(.file):\(.line) [\(.severity)] \(.rule_id // .extractor_id): \(.reason // "")"' "$RESULTS_FILE" 2>/dev/null | head -40)
+            COMMENT+="\n\`\`\`\n</details>\n"
+          fi
+
+          echo -e "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --body-file -
+
+      - name: Fail on findings
+        if: steps.scan.outputs.scan_exit_code != '0'
+        run: |
+          echo "::error::DCG scan found destructive commands. Review the findings above."
+          exit ${{ steps.scan.outputs.scan_exit_code }}
